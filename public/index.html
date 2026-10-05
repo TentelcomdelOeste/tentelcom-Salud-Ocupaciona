@@ -291,7 +291,21 @@
       page.drawLine({start:{x:t.left,y:y},end:{x:t.right,y:y},thickness:1,color:PDFLib.rgb(0,0,0)});
     }
   }
-  function writePerson(page,r,s,font,num){var centerY=(Number.isFinite(r.pdfTop)&&Number.isFinite(r.pdfBottom))?((r.pdfTop+r.pdfBottom)/2):(r.pdfBaselineY||page.getHeight()*.5);var name=s.name,fs=fitFont(font,name,Math.max(40,r.nameRight-r.nameLeft-10),10),baseY=centerY-fs*.2555,nw=font.widthOfTextAtSize(name,fs);page.drawText(name,{x:(r.nameLeft+r.nameRight-nw)/2,y:baseY,size:fs,font:font,color:PDFLib.rgb(.12,.14,.17)});var dni=s.dni,ds=fitFont(font,dni,r.docRight-r.docLeft-10,10),dw=font.widthOfTextAtSize(dni,ds);var dniY=centerY-ds*.2555;page.drawText(dni,{x:(r.docLeft+r.docRight-dw)/2,y:dniY,size:ds,font:font,color:PDFLib.rgb(.12,.14,.17)})}
+  function writePerson(page,r,s,font,num){
+    var centerY=(Number.isFinite(r.pdfTop)&&Number.isFinite(r.pdfBottom))
+      ?((r.pdfTop+r.pdfBottom)/2)
+      :(r.pdfBaselineY||page.getHeight()*.5);
+    function verticalBaseline(size){
+      var ascent=font.heightAtSize(size,{descender:false});
+      var full=font.heightAtSize(size,{descender:true});
+      var descent=full-ascent;
+      return centerY-(ascent+descent)/2;
+    }
+    var name=s.name,fs=fitFont(font,name,Math.max(40,r.nameRight-r.nameLeft-10),10),baseY=verticalBaseline(fs),nw=font.widthOfTextAtSize(name,fs);
+    page.drawText(name,{x:(r.nameLeft+r.nameRight-nw)/2,y:baseY,size:fs,font:font,color:PDFLib.rgb(.12,.14,.17)});
+    var dni=s.dni,ds=fitFont(font,dni,r.docRight-r.docLeft-10,10),dw=font.widthOfTextAtSize(dni,ds),dniY=verticalBaseline(ds);
+    page.drawText(dni,{x:(r.docLeft+r.docRight-dw)/2,y:dniY,size:ds,font:font,color:PDFLib.rgb(.12,.14,.17)});
+  }
   async function publishGenerated(selected,template,metaOverride){var built=await buildAttendancePdf(template,selected,metaOverride),b64=bytesToB64(built.bytes),sid=(config&&config.sessionId)||await sha256(built.bytes);var signers=selected.map(function(s,i){var slot=built.slots[i],r=slot.row;return {name:s.name,dni:s.dni,page:slot.templatePage,textY:r.textY,textH:r.textH,pdfBaselineY:r.pdfBaselineY,pageWidth:r.pageWidth,pageHeight:r.pageHeight,signatureCenterX:(r.signatureCenterX||r.pageWidth*.78),signatureMaxW:r.signatureMaxW,rowHeight:r.rowHeight}});var fileName=(document.getElementById('templateFile').files[0]||{}).name||((config&&config.fileName)||'Control_Asistencia.pdf');var c={pdfB64:b64,signers:signers,sessionId:sid,fileName:fileName,meta:Object.assign({},built.meta||{},metaOverride||{})};var res;try{res=await fetch(FORM_API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(c)});}catch(fetchErr){throw new Error('No se pudo conectar con el servidor de publicación. Verificá la función /api/form en Netlify y volvé a intentar. ('+(fetchErr&&fetchErr.message||'Failed to fetch')+')')}if(!res.ok){var ej={};try{ej=await res.json()}catch(_){}throw new Error((ej.error||'No se pudo publicar el formulario')+' (HTTP '+res.status+')'+(ej.details?' — '+ej.details:''))}return c}
   async function loadConfig(){try{var r=await fetch(noCache(FORM_API),{cache:'no-store'});if(!r.ok)throw 0;config=await r.json()}catch(e){if(FALLBACK_PDF_B64){var b=b64ToBytes(FALLBACK_PDF_B64);config={pdfB64:FALLBACK_PDF_B64,signers:[],sessionId:await sha256(b),fileName:'Control_Asistencia_Salud_Mental.pdf',meta:await getMeta(b)}; }else{return false}}
     SIGNERS=(config.signers||[]).map(function(s){return Object.assign({},s)});sessionId=config.sessionId;updateHeader();downloadBtn.disabled=false;await loadSignatures({notify:true});renderList();return true}
