@@ -291,6 +291,23 @@
       page.drawLine({start:{x:t.left,y:y},end:{x:t.right,y:y},thickness:1,color:PDFLib.rgb(0,0,0)});
     }
   }
+  function redrawPeopleForDownload(page,pageIndex){
+    var t=FIXED_TABLE,bottom=t.top-t.rows*t.rowHeight;
+    page.drawRectangle({x:t.left-1,y:bottom-1,width:t.right-t.left+2,height:t.top-bottom+2,color:PDFLib.rgb(1,1,1)});
+    var font=page.__attendanceFont;
+    if(!font)return;
+    var start=pageIndex*t.rows,end=Math.min(SIGNERS.length,start+t.rows);
+    for(var i=start;i<end;i++){
+      var rowIndex=i-start,r={
+        pdfTop:t.top-rowIndex*t.rowHeight,
+        pdfBottom:t.top-(rowIndex+1)*t.rowHeight,
+        nameLeft:t.left,nameRight:t.colName,
+        docLeft:t.colName,docRight:t.colDoc
+      };
+      writePerson(page,r,SIGNERS[i],font,i+1);
+    }
+    redrawFixedGrid(page);
+  }
   function writePerson(page,r,s,font,num){
     var centerY=(Number.isFinite(r.pdfTop)&&Number.isFinite(r.pdfBottom))
       ?((r.pdfTop+r.pdfBottom)/2)
@@ -364,7 +381,7 @@
     var x=centerX-w/2,y=centerY-h/2;
     page.drawImage(img,{x:x,y:y,width:w,height:h});
   }
-  downloadBtn.addEventListener('click',async function(){if(!config||!SIGNERS.length)return;downloadBtn.disabled=true;downloadBtnLabel.innerHTML='<span class="spinner"></span>';try{await loadSignatures();var signedCount=SIGNERS.filter(function(s){return !!state[s.dni]}).length;var pdfDoc=await PDFLib.PDFDocument.load(b64ToBytes(config.pdfB64)),pages=pdfDoc.getPages();for(var gi=0;gi<pages.length;gi++){redrawMetaGrid(pages[gi]);redrawFixedGrid(pages[gi])}for(var i=0;i<SIGNERS.length;i++){var s=SIGNERS[i],dataUrl=state[s.dni];if(!dataUrl||typeof dataUrl!=='string'||dataUrl.indexOf('data:image/png;base64,')!==0)continue;try{var trimmed=await trimSignatureDataUrl(dataUrl),img=await pdfDoc.embedPng(base64ToBytes(trimmed));var pageIndex=Number.isInteger(s.page)?s.page:Math.floor(i/FIXED_TABLE.rows);pageIndex=Math.max(0,Math.min(pageIndex,pages.length-1));var drawSlot=(pageIndex*FIXED_TABLE.rows)+(i%FIXED_TABLE.rows);drawSignature(pages[pageIndex],img,s,drawSlot)}catch(sigErr){console.error('Firma omitida al generar PDF',s.dni,sigErr)}}var bytes=await pdfDoc.save(),blob=new Blob([bytes],{type:'application/pdf'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(config.fileName||'asistencia.pdf').replace(/\.pdf$/i,'')+'_Firmado.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url)},4000);toast('PDF descargado ('+signedCount+' de '+SIGNERS.length+' firmas)')}catch(e){console.error('Error generando PDF',e);toast('Ocurrió un error generando el PDF')}finally{downloadBtn.disabled=false;downloadBtnLabel.textContent='Descargar PDF firmado'}})
+  downloadBtn.addEventListener('click',async function(){if(!config||!SIGNERS.length)return;downloadBtn.disabled=true;downloadBtnLabel.innerHTML='<span class="spinner"></span>';try{await loadSignatures();var signedCount=SIGNERS.filter(function(s){return !!state[s.dni]}).length;var pdfDoc=await PDFLib.PDFDocument.load(b64ToBytes(config.pdfB64)),pages=pdfDoc.getPages(),downloadFont=await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);for(var gi=0;gi<pages.length;gi++){pages[gi].__attendanceFont=downloadFont;redrawMetaGrid(pages[gi]);redrawPeopleForDownload(pages[gi],gi);delete pages[gi].__attendanceFont}for(var i=0;i<SIGNERS.length;i++){var s=SIGNERS[i],dataUrl=state[s.dni];if(!dataUrl||typeof dataUrl!=='string'||dataUrl.indexOf('data:image/png;base64,')!==0)continue;try{var trimmed=await trimSignatureDataUrl(dataUrl),img=await pdfDoc.embedPng(base64ToBytes(trimmed));var pageIndex=Number.isInteger(s.page)?s.page:Math.floor(i/FIXED_TABLE.rows);pageIndex=Math.max(0,Math.min(pageIndex,pages.length-1));var drawSlot=(pageIndex*FIXED_TABLE.rows)+(i%FIXED_TABLE.rows);drawSignature(pages[pageIndex],img,s,drawSlot)}catch(sigErr){console.error('Firma omitida al generar PDF',s.dni,sigErr)}}var bytes=await pdfDoc.save(),blob=new Blob([bytes],{type:'application/pdf'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(config.fileName||'asistencia.pdf').replace(/\.pdf$/i,'')+'_Firmado.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url)},4000);toast('PDF descargado ('+signedCount+' de '+SIGNERS.length+' firmas)')}catch(e){console.error('Error generando PDF',e);toast('Ocurrió un error generando el PDF')}finally{downloadBtn.disabled=false;downloadBtnLabel.textContent='Descargar PDF firmado'}})
   // Settings / integrated collaborator catalog
   var settingsSection=document.getElementById('settingsSection'),gear=document.getElementById('settingsGear'),settingsClose=document.getElementById('settingsClose'),topicInput=document.getElementById('topicInput'),dateInput=document.getElementById('dateInput'),saveMetaBtn=document.getElementById('saveMetaBtn'),metaStatus=document.getElementById('metaStatus'),collaboratorSelect=document.getElementById('collaboratorSelect'),addCollaboratorBtn=document.getElementById('addCollaboratorBtn'),clearSelectionBtn=document.getElementById('clearSelectionBtn'),selectionList=document.getElementById('selectionList'),selectionCount=document.getElementById('selectionCount'),templateFile=document.getElementById('templateFile'),templateStatus=document.getElementById('templateStatus'),publishStep=document.getElementById('publishStep'),publishBtn=document.getElementById('publishSelectionBtn'),publishStatus=document.getElementById('publishStatus');
   function dateToInput(v){var m=String(v||'').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return '';return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0')}
