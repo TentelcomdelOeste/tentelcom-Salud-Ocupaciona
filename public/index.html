@@ -316,7 +316,10 @@
       var ascent=font.heightAtSize(size,{descender:false});
       var full=font.heightAtSize(size,{descender:true});
       var descent=full-ascent;
-      return centerY-(ascent+descent)/2;
+      // drawText usa la línea base. Para centrar visualmente el texto,
+      // el centro del bloque tipográfico está a (ascenso-descenso)/2
+      // respecto de esa línea base.
+      return centerY-(ascent-descent)/2;
     }
     var name=s.name,fs=fitFont(font,name,Math.max(40,r.nameRight-r.nameLeft-10),10),baseY=verticalBaseline(fs),nw=font.widthOfTextAtSize(name,fs);
     page.drawText(name,{x:(r.nameLeft+r.nameRight-nw)/2,y:baseY,size:fs,font:font,color:PDFLib.rgb(.12,.14,.17)});
