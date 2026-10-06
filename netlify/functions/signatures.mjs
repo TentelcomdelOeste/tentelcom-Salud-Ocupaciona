@@ -45,7 +45,7 @@ export default async function handler(request) {
       if (dnis.length) {
         const values = await Promise.all(dnis.map(async dni => ({
           dni,
-          value: await store.get(keyFor(sessionId, dni), { type: 'text', consistency: 'strong' })
+          value: await store.get(keyFor(sessionId, dni), { type: 'text' })
         })));
         values.forEach(({ dni, value }) => { result[dni] = value || null; });
       } else {
@@ -55,7 +55,7 @@ export default async function handler(request) {
           const idx = b.key.indexOf(marker);
           if (idx >= 0) {
             const dni = b.key.slice(idx + marker.length);
-            const value = await store.get(b.key, { type: 'text', consistency: 'strong' });
+            const value = await store.get(b.key, { type: 'text' });
             if (value) result[dni] = value;
           }
         }
@@ -73,7 +73,7 @@ export default async function handler(request) {
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           await store.set(key, body.dataUrl);
-          const saved = await store.get(key, { type: 'text', consistency: 'strong' });
+          const saved = await store.get(key, { type: 'text' });
           if (saved === body.dataUrl) return response(200, { ok: true });
           throw new Error('La firma no pudo verificarse después de guardarla');
         } catch (err) {
