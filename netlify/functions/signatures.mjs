@@ -1,6 +1,6 @@
 import { getStore } from '@netlify/blobs';
 
-const store = getStore('firmas-asistencia', { consistency: 'strong' });
+const store = getStore({ name: 'firmas-asistencia', consistency: 'strong' });
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -39,26 +39,9 @@ export default async function handler(request) {
 
     if (request.method === 'GET') {
       const result = {};
-      const rawDnis = qs.dnis || '';
-      const dnis = String(rawDnis).split(',').map(v => v.trim()).filter(Boolean);
-
-      if (dnis.length) {
-        const values = await Promise.all(dnis.map(async dni => ({
-          dni,
-          value: await store.get(keyFor(sessionId, dni), { type: 'text' })
-        })));
-        values.forEach(({ dni, value }) => { result[dni] = value || null; });
-      } else {
-        const { blobs } = await store.list({ prefix: 'session_' + String(sessionId).replace(/[^a-zA-Z0-9_-]/g, '_') + '__dni_' });
-        for (const b of blobs) {
-          const marker = '__dni_';
-          const idx = b.key.indexOf(marker);
-          if (idx >= 0) {
-            const dni = b.key.slice(idx + marker.length);
-            const value = await store.get(b.key, { type: 'text' });
-            if (value) result[dni] = value;
-          }
-        }
+      const dnis = String(qs.dnis || '').split(',').map(v => v.trim()).filter(Boolean);
+      for (const dni of dnis) {
+        result[dni] = await store.get(keyFor(sessionId, dni), { type: 'text', consistency: 'strong' });
       }
       return response(200, result);
     }
@@ -67,21 +50,8 @@ export default async function handler(request) {
       if (!body.dni || typeof body.dataUrl !== 'string') return response(400, { error: 'Falta dni o dataUrl' });
       if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(body.dataUrl)) return response(400, { error: 'La firma no tiene un formato PNG válido' });
       if (body.dataUrl.length > 5 * 1024 * 1024) return response(413, { error: 'La firma supera el tamaño permitido' });
-
-      const key = keyFor(sessionId, body.dni);
-      let lastError = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          await store.set(key, body.dataUrl);
-          const saved = await store.get(key, { type: 'text' });
-          if (saved === body.dataUrl) return response(200, { ok: true });
-          throw new Error('La firma no pudo verificarse después de guardarla');
-        } catch (err) {
-          lastError = err;
-          if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 200 * (attempt + 1)));
-        }
-      }
-      throw lastError || new Error('No se pudo guardar la firma');
+      await store.set(keyFor(sessionId, body.dni), body.dataUrl);
+      return response(200, { ok: true });
     }
 
     if (request.method === 'DELETE') {
